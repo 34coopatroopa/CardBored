@@ -26,6 +26,8 @@ export async function onRequest(context) {
       return new Response('Invalid request body', { status: 400 })
     }
 
+    console.log('Received deckText:', deckText.substring(0, 100) + '...')
+
     // Parse decklist into cards
     const lines = deckText.trim().split('\n')
     const cards = []
@@ -55,8 +57,11 @@ export async function onRequest(context) {
 
     const results = []
     
+    console.log('Parsed cards:', cards.length)
+    
     for (const card of cards) {
       try {
+        console.log('Searching for card:', card.name)
         // Search for card in Scryfall
         const searchUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(card.name)}`
         const response = await fetch(searchUrl)
@@ -64,6 +69,8 @@ export async function onRequest(context) {
         if (response.ok) {
           const data = await response.json()
           const scryfallCard = data.data?.[0]
+          
+          console.log('Found card:', card.name, 'Price:', scryfallCard?.prices?.usd)
           
           if (scryfallCard) {
             results.push({
@@ -75,6 +82,7 @@ export async function onRequest(context) {
               type: scryfallCard.type_line || 'Unknown'
             })
           } else {
+            console.log('Card not found:', card.name)
             results.push({
               ...card,
               price: 0,
@@ -85,6 +93,7 @@ export async function onRequest(context) {
             })
           }
         } else {
+          console.log('Scryfall API error for:', card.name, 'Status:', response.status)
           results.push({
             ...card,
             price: 0,
@@ -99,6 +108,7 @@ export async function onRequest(context) {
         await new Promise(resolve => setTimeout(resolve, 100))
         
       } catch (error) {
+        console.log('Error fetching card:', card.name, error.message)
         results.push({
           ...card,
           price: 0,
