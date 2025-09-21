@@ -14,8 +14,8 @@ export async function onRequest(context) {
     })
   }
   
-  // Only allow POST requests to /api/process-decklist
-  if (request.method !== 'POST' || !url.pathname.includes('/api/process-decklist')) {
+  // Only allow POST requests
+  if (request.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 })
   }
 
