@@ -36,14 +36,17 @@ export function parseDecklist(deckText) {
 // Fetch card prices using our backend API
 export async function fetchCardPrices(deckText) {
   try {
+    console.log('Fetching card prices for deckText:', deckText.substring(0, 100) + '...')
     const response = await axios.post(`${API_BASE}/process-decklist`, {
       deckText
     })
     
+    console.log('API response:', response.data)
     return response.data.cards || []
   } catch (error) {
     console.error('Error fetching card prices:', error)
-    throw new Error('Failed to fetch card prices from server')
+    console.error('Error details:', error.response?.data)
+    throw new Error(`Failed to fetch card prices: ${error.message}`)
   }
 }
 
