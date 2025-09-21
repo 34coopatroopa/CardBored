@@ -33,53 +33,116 @@ export function parseDecklist(deckText) {
   return cards
 }
 
-// Fetch card prices using our backend API
+// Fetch card prices directly from Scryfall API
 export async function fetchCardPrices(deckText) {
   try {
-    console.log('=== fetchCardPrices START ===')
+    console.log('=== fetchCardPrices START (Direct Scryfall) ===')
     console.log('DeckText length:', deckText.length)
-    console.log('API_BASE:', API_BASE)
-    console.log('Full URL:', `${API_BASE}/process-decklist`)
     
-    const requestData = { deckText }
-    console.log('Request data:', requestData)
+    // Parse decklist into cards
+    const cards = parseDecklist(deckText)
+    console.log('Parsed cards:', cards.length)
     
-    const response = await axios.post(`${API_BASE}/process-decklist`, requestData, {
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      timeout: 30000 // 30 second timeout
-    })
+    const results = []
+    const maxRequests = 15 // Limit to avoid rate limiting
     
-    console.log('Response status:', response.status)
-    console.log('Response data:', response.data)
-    console.log('Response cards length:', response.data?.cards?.length || 0)
+    for (let i = 0; i < Math.min(cards.length, maxRequests); i++) {
+      const card = cards[i]
+      
+      try {
+        console.log(`Searching for card ${i + 1}/${Math.min(cards.length, maxRequests)}: ${card.name}`)
+        
+        // Try exact search first
+        const exactUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(card.name)}`
+        const response = await fetch(exactUrl)
+        
+        if (response.ok) {
+          const data = await response.json()
+          console.log(`Found ${card.name}, price: ${data.prices?.usd}`)
+          results.push({
+            ...card,
+            price: parseFloat(data.prices?.usd) || 0,
+            imageUrl: data.image_uris?.small || null,
+            setName: data.set_name || 'Unknown',
+            manaCost: data.mana_cost || '',
+            type: data.type_line || 'Unknown'
+          })
+        } else {
+          // Try fuzzy search
+          const fuzzyUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(card.name)}&order=released&dir=desc&unique=cards`
+          const fuzzyResponse = await fetch(fuzzyUrl)
+          
+          if (fuzzyResponse.ok) {
+            const fuzzyData = await fuzzyResponse.json()
+            const foundCard = fuzzyData.data?.[0]
+            
+            if (foundCard) {
+              console.log(`Fuzzy found ${card.name} as ${foundCard.name}, price: ${foundCard.prices?.usd}`)
+              results.push({
+                ...card,
+                price: parseFloat(foundCard.prices?.usd) || 0,
+                imageUrl: foundCard.image_uris?.small || null,
+                setName: foundCard.set_name || 'Unknown',
+                manaCost: foundCard.mana_cost || '',
+                type: foundCard.type_line || 'Unknown'
+              })
+            } else {
+              results.push({
+                ...card,
+                price: 0,
+                imageUrl: null,
+                setName: 'Not Found',
+                manaCost: '',
+                type: 'Unknown'
+              })
+            }
+          } else {
+            results.push({
+              ...card,
+              price: 0,
+              imageUrl: null,
+              setName: 'Search Failed',
+              manaCost: '',
+              type: 'Unknown'
+            })
+          }
+        }
+        
+        // Rate limiting
+        await new Promise(resolve => setTimeout(resolve, 150))
+        
+      } catch (error) {
+        console.log(`Error fetching ${card.name}: ${error.message}`)
+        results.push({
+          ...card,
+          price: 0,
+          imageUrl: null,
+          setName: 'Error',
+          manaCost: '',
+          type: 'Unknown'
+        })
+      }
+    }
     
-    const result = response.data.cards || []
+    // Add remaining cards without prices if we hit the limit
+    for (let i = maxRequests; i < cards.length; i++) {
+      results.push({
+        ...cards[i],
+        price: 0,
+        imageUrl: null,
+        setName: 'Not Processed',
+        manaCost: '',
+        type: 'Unknown'
+      })
+    }
+    
     console.log('=== fetchCardPrices SUCCESS ===')
-    return result
+    return results
     
   } catch (error) {
     console.error('=== fetchCardPrices ERROR ===')
-    console.error('Error object:', error)
-    console.error('Error message:', error.message)
-    console.error('Error response:', error.response)
-    console.error('Error response data:', error.response?.data)
-    console.error('Error response status:', error.response?.status)
-    console.error('Error response headers:', error.response?.headers)
-    
-    // Try to provide more specific error messages
-    if (error.code === 'NETWORK_ERROR') {
-      throw new Error('Network error - check your internet connection')
-    } else if (error.response?.status === 404) {
-      throw new Error('API endpoint not found - function may not be deployed')
-    } else if (error.response?.status === 500) {
-      throw new Error('Server error - check Cloudflare Pages function logs')
-    } else if (error.response?.status === 405) {
-      throw new Error('Method not allowed - API function configuration issue')
-    } else {
-      throw new Error(`Failed to fetch card prices: ${error.message}`)
-    }
+    console.error('Error:', error)
+    throw new Error(`Failed to fetch card prices: ${error.message}`)
   }
 }
 
