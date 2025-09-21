@@ -21,15 +21,12 @@ function CardPreview({ card, isVisible, position, onClose }) {
 
   const fetchCardDetails = async (cardName) => {
     try {
-      const response = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cardName)}`)
+      // Use our proxy to avoid CORS issues
+      const response = await fetch(`/api/card-proxy?card=${encodeURIComponent(cardName)}`)
       if (!response.ok) throw new Error('Card not found')
       return await response.json()
     } catch (error) {
-      // Fallback to search if exact match fails
-      const searchResponse = await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(cardName)}`)
-      if (!searchResponse.ok) throw new Error('Card not found')
-      const searchData = await searchResponse.json()
-      return searchData.data?.[0] || null
+      throw new Error('Card not found')
     }
   }
 

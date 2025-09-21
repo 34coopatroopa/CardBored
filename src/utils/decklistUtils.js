@@ -34,7 +34,7 @@ export function parseDecklist(deckText) {
 // Fetch card prices directly from Scryfall API
 export async function fetchCardPrices(deckText) {
   try {
-    console.log('=== fetchCardPrices START (Direct Scryfall) ===')
+    console.log('=== fetchCardPrices START (Direct Scryfall v2) ===')
     console.log('DeckText length:', deckText.length)
     
     // Parse decklist into cards
@@ -50,9 +50,9 @@ export async function fetchCardPrices(deckText) {
       try {
         console.log(`Searching for card ${i + 1}/${Math.min(cards.length, maxRequests)}: ${card.name}`)
         
-        // Try exact search first
-        const exactUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(card.name)}`
-        const response = await fetch(exactUrl)
+        // Use our proxy to avoid CORS issues
+        const proxyUrl = `/api/card-proxy?card=${encodeURIComponent(card.name)}`
+        const response = await fetch(proxyUrl)
         
         if (response.ok) {
           const data = await response.json()
@@ -66,44 +66,15 @@ export async function fetchCardPrices(deckText) {
             type: data.type_line || 'Unknown'
           })
         } else {
-          // Try fuzzy search
-          const fuzzyUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(card.name)}&order=released&dir=desc&unique=cards`
-          const fuzzyResponse = await fetch(fuzzyUrl)
-          
-          if (fuzzyResponse.ok) {
-            const fuzzyData = await fuzzyResponse.json()
-            const foundCard = fuzzyData.data?.[0]
-            
-            if (foundCard) {
-              console.log(`Fuzzy found ${card.name} as ${foundCard.name}, price: ${foundCard.prices?.usd}`)
-              results.push({
-                ...card,
-                price: parseFloat(foundCard.prices?.usd) || 0,
-                imageUrl: foundCard.image_uris?.small || null,
-                setName: foundCard.set_name || 'Unknown',
-                manaCost: foundCard.mana_cost || '',
-                type: foundCard.type_line || 'Unknown'
-              })
-            } else {
-              results.push({
-                ...card,
-                price: 0,
-                imageUrl: null,
-                setName: 'Not Found',
-                manaCost: '',
-                type: 'Unknown'
-              })
-            }
-          } else {
-            results.push({
-              ...card,
-              price: 0,
-              imageUrl: null,
-              setName: 'Search Failed',
-              manaCost: '',
-              type: 'Unknown'
-            })
-          }
+          console.log(`Card not found: ${card.name}`)
+          results.push({
+            ...card,
+            price: 0,
+            imageUrl: null,
+            setName: 'Not Found',
+            manaCost: '',
+            type: 'Unknown'
+          })
         }
         
         // Rate limiting
