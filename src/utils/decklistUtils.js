@@ -45,7 +45,7 @@ export async function fetchCardPrices(deckText) {
     const results = response.cards?.map(card => ({
       name: card.name || 'Unknown',
       quantity: card.quantity || 1,
-      price: parseFloat(card.price) || 0,
+      price: card.price === "N/A" ? 0 : parseFloat(card.price) || 0,
       imageUrl: card.imageUrl || null,
       setName: card.setName || 'Unknown',
       manaCost: card.manaCost || '',

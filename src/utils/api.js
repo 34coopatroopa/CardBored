@@ -24,6 +24,8 @@ export async function processDecklist(decklist) {
   
   const data = await response.json()
   console.log('API: Received', data.cards?.length || 0, 'cards')
+  console.log('API: Total cost:', data.totalCost)
+  console.log('API: Cache age:', data.cacheAge, 'hours')
   return data;
 }
 
