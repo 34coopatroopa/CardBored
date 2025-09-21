@@ -45,20 +45,25 @@ export async function onRequestPost(context) {
       }
     }
 
-    // Fetch prices using our card-proxy
+    // Fetch prices from Scryfall API
     const results = []
     const maxRequests = 15 // Limit to avoid rate limiting
+    
+    console.log(`Processing ${cards.length} cards, limiting to ${maxRequests}`)
     
     for (let i = 0; i < Math.min(cards.length, maxRequests); i++) {
       const card = cards[i]
       
       try {
-        // Use our card-proxy to avoid CORS issues
-        const proxyUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(card.name)}`
-        const response = await fetch(proxyUrl)
+        console.log(`Searching for: "${card.name}" (${card.quantity}x)`)
+        
+        // Try exact search first
+        const exactUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(card.name)}`
+        const response = await fetch(exactUrl)
         
         if (response.ok) {
           const data = await response.json()
+          console.log(`Found "${card.name}": $${data.prices?.usd}`)
           results.push({
             ...card,
             price: parseFloat(data.prices?.usd) || 0,
@@ -68,6 +73,7 @@ export async function onRequestPost(context) {
             type: data.type_line || 'Unknown'
           })
         } else {
+          console.log(`Exact search failed for "${card.name}", trying fuzzy search`)
           // Try fuzzy search
           const fuzzyUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(card.name)}&order=released&dir=desc&unique=cards`
           const fuzzyResponse = await fetch(fuzzyUrl)
@@ -77,6 +83,7 @@ export async function onRequestPost(context) {
             const foundCard = fuzzyData.data?.[0]
             
             if (foundCard) {
+              console.log(`Fuzzy found "${card.name}" as "${foundCard.name}": $${foundCard.prices?.usd}`)
               results.push({
                 ...card,
                 price: parseFloat(foundCard.prices?.usd) || 0,
@@ -86,6 +93,7 @@ export async function onRequestPost(context) {
                 type: foundCard.type_line || 'Unknown'
               })
             } else {
+              console.log(`No fuzzy match for "${card.name}"`)
               results.push({
                 ...card,
                 price: 0,
@@ -96,6 +104,7 @@ export async function onRequestPost(context) {
               })
             }
           } else {
+            console.log(`Fuzzy search also failed for "${card.name}"`)
             results.push({
               ...card,
               price: 0,
@@ -111,6 +120,7 @@ export async function onRequestPost(context) {
         await new Promise(resolve => setTimeout(resolve, 150))
         
       } catch (error) {
+        console.log(`Error fetching "${card.name}": ${error.message}`)
         results.push({
           ...card,
           price: 0,
