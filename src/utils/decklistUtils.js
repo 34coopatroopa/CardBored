@@ -34,7 +34,7 @@ export function parseDecklist(deckText) {
 // Fetch card prices directly from Scryfall API
 export async function fetchCardPrices(deckText) {
   try {
-    console.log('=== fetchCardPrices START (Using Proxy v3) ===')
+    console.log('=== fetchCardPrices START (DEPLOYMENT TEST v4) ===')
     console.log('DeckText length:', deckText.length)
     
     // Parse decklist into cards
