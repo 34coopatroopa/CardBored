@@ -1,7 +1,5 @@
 import axios from 'axios'
 
-const API_BASE = '/api'
-
 // Parse a decklist text into card objects
 export function parseDecklist(deckText) {
   const lines = deckText.trim().split('\n')
