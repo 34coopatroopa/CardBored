@@ -8,8 +8,12 @@ function DeckInput({ onSubmit, priceThreshold, onThresholdChange, loading, error
 
   const handleSubmit = (e) => {
     e.preventDefault()
+    console.log('DeckInput handleSubmit called, deckText length:', deckText.length)
     if (deckText.trim()) {
+      console.log('Calling onSubmit with deckText...')
       onSubmit(deckText)
+    } else {
+      console.log('No deckText to submit')
     }
   }
 

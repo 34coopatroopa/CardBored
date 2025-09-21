@@ -18,12 +18,15 @@ function App() {
   const [showRatingModal, setShowRatingModal] = useState(false)
 
   const processDecklist = useCallback(async (deckText) => {
+    console.log('processDecklist called with:', deckText.substring(0, 100) + '...')
     setLoading(true)
     setError('')
     
     try {
       // Fetch prices for all cards using backend API
+      console.log('About to call fetchCardPrices...')
       const cardsWithPrices = await fetchCardPrices(deckText)
+      console.log('fetchCardPrices returned:', cardsWithPrices.length, 'cards')
       
       // Split into keep/proxy based on threshold
       const keep = cardsWithPrices.filter(card => card.price <= priceThreshold)
