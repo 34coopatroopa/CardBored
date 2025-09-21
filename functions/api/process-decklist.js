@@ -49,11 +49,16 @@ export async function onRequest(context) {
     const results = []
     for (const card of cards) {
       try {
+        console.log(`Searching for card: ${card.name}`)
         const searchUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(card.name)}`
+        console.log(`Exact search URL: ${searchUrl}`)
+        
         const response = await fetch(searchUrl)
+        console.log(`Exact search response status: ${response.status}`)
         
         if (response.ok) {
           const data = await response.json()
+          console.log(`Found card ${card.name}, price: ${data.prices?.usd}`)
           results.push({
             ...card,
             price: parseFloat(data.prices?.usd) || 0,
@@ -63,13 +68,18 @@ export async function onRequest(context) {
             type: data.type_line || 'Unknown'
           })
         } else {
+          console.log(`Exact search failed for ${card.name}, trying fuzzy search`)
           // Try fuzzy search
           const fuzzyUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(card.name)}`
+          console.log(`Fuzzy search URL: ${fuzzyUrl}`)
+          
           const fuzzyResponse = await fetch(fuzzyUrl)
+          console.log(`Fuzzy search response status: ${fuzzyResponse.status}`)
           
           if (fuzzyResponse.ok) {
             const fuzzyData = await fuzzyResponse.json()
             const scryfallCard = fuzzyData.data?.[0]
+            console.log(`Fuzzy search found ${scryfallCard ? scryfallCard.name : 'nothing'} for ${card.name}`)
             
             if (scryfallCard) {
               results.push({
@@ -91,6 +101,7 @@ export async function onRequest(context) {
               })
             }
           } else {
+            console.log(`Fuzzy search failed for ${card.name}, status: ${fuzzyResponse.status}`)
             results.push({
               ...card,
               price: 0,
@@ -102,9 +113,10 @@ export async function onRequest(context) {
           }
         }
         
-        await new Promise(resolve => setTimeout(resolve, 50))
+        await new Promise(resolve => setTimeout(resolve, 100))
         
       } catch (error) {
+        console.log(`Error fetching ${card.name}: ${error.message}`)
         results.push({
           ...card,
           price: 0,

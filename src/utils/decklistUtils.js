@@ -36,17 +36,50 @@ export function parseDecklist(deckText) {
 // Fetch card prices using our backend API
 export async function fetchCardPrices(deckText) {
   try {
-    console.log('Fetching card prices for deckText:', deckText.substring(0, 100) + '...')
-    const response = await axios.post(`${API_BASE}/process-decklist`, {
-      deckText
+    console.log('=== fetchCardPrices START ===')
+    console.log('DeckText length:', deckText.length)
+    console.log('API_BASE:', API_BASE)
+    console.log('Full URL:', `${API_BASE}/process-decklist`)
+    
+    const requestData = { deckText }
+    console.log('Request data:', requestData)
+    
+    const response = await axios.post(`${API_BASE}/process-decklist`, requestData, {
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000 // 30 second timeout
     })
     
-    console.log('API response:', response.data)
-    return response.data.cards || []
+    console.log('Response status:', response.status)
+    console.log('Response data:', response.data)
+    console.log('Response cards length:', response.data?.cards?.length || 0)
+    
+    const result = response.data.cards || []
+    console.log('=== fetchCardPrices SUCCESS ===')
+    return result
+    
   } catch (error) {
-    console.error('Error fetching card prices:', error)
-    console.error('Error details:', error.response?.data)
-    throw new Error(`Failed to fetch card prices: ${error.message}`)
+    console.error('=== fetchCardPrices ERROR ===')
+    console.error('Error object:', error)
+    console.error('Error message:', error.message)
+    console.error('Error response:', error.response)
+    console.error('Error response data:', error.response?.data)
+    console.error('Error response status:', error.response?.status)
+    console.error('Error response headers:', error.response?.headers)
+    
+    // Try to provide more specific error messages
+    if (error.code === 'NETWORK_ERROR') {
+      throw new Error('Network error - check your internet connection')
+    } else if (error.response?.status === 404) {
+      throw new Error('API endpoint not found - function may not be deployed')
+    } else if (error.response?.status === 500) {
+      throw new Error('Server error - check Cloudflare Pages function logs')
+    } else if (error.response?.status === 405) {
+      throw new Error('Method not allowed - API function configuration issue')
+    } else {
+      throw new Error(`Failed to fetch card prices: ${error.message}`)
+    }
   }
 }
 
