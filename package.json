@@ -9,8 +9,7 @@
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "server": "node server/index.js",
-    "start:all": "node start-dev.js",
-    "vercel-build": "vite build"
+    "start:all": "node start-dev.js"
   },
   "dependencies": {
     "react": "^18.2.0",
