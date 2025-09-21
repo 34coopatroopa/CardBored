@@ -45,109 +45,26 @@ export async function onRequest(context) {
       }
     }
 
-    // Fetch prices with individual searches (simpler and more reliable)
-    const results = []
-    const maxRequests = 20 // Limit to avoid subrequest limits
-    
-    for (let i = 0; i < Math.min(cards.length, maxRequests); i++) {
-      const card = cards[i]
-      
-      try {
-        console.log(`Searching for card ${i + 1}/${Math.min(cards.length, maxRequests)}: ${card.name}`)
-        
-        // Try exact search first
-        const exactUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(card.name)}`
-        console.log(`Exact URL: ${exactUrl}`)
-        
-        const response = await fetch(exactUrl)
-        console.log(`Exact response status: ${response.status}`)
-        console.log(`Exact response ok: ${response.ok}`)
-        
-        if (response.ok) {
-          const data = await response.json()
-          console.log(`Found ${card.name}, price: ${data.prices?.usd}`)
-          results.push({
-            ...card,
-            price: parseFloat(data.prices?.usd) || 0,
-            imageUrl: data.image_uris?.small || null,
-            setName: data.set_name || 'Unknown',
-            manaCost: data.mana_cost || '',
-            type: data.type_line || 'Unknown'
-          })
-        } else {
-          // Try fuzzy search
-          const fuzzyUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(card.name)}&order=released&dir=desc&unique=cards`
-          console.log(`Fuzzy URL: ${fuzzyUrl}`)
-          
-          const fuzzyResponse = await fetch(fuzzyUrl)
-          console.log(`Fuzzy response status: ${fuzzyResponse.status}`)
-          console.log(`Fuzzy response ok: ${fuzzyResponse.ok}`)
-          
-          if (fuzzyResponse.ok) {
-            const fuzzyData = await fuzzyResponse.json()
-            const foundCard = fuzzyData.data?.[0]
-            
-            if (foundCard) {
-              console.log(`Fuzzy found ${card.name} as ${foundCard.name}, price: ${foundCard.prices?.usd}`)
-              results.push({
-                ...card,
-                price: parseFloat(foundCard.prices?.usd) || 0,
-                imageUrl: foundCard.image_uris?.small || null,
-                setName: foundCard.set_name || 'Unknown',
-                manaCost: foundCard.mana_cost || '',
-                type: foundCard.type_line || 'Unknown'
-              })
-            } else {
-              console.log(`No fuzzy match for ${card.name}`)
-              results.push({
-                ...card,
-                price: 0,
-                imageUrl: null,
-                setName: 'Not Found',
-                manaCost: '',
-                type: 'Unknown'
-              })
-            }
-          } else {
-            console.log(`Both searches failed for ${card.name} - exact: ${response.status}, fuzzy: ${fuzzyResponse.status}`)
-            results.push({
-              ...card,
-              price: 0,
-              imageUrl: null,
-              setName: 'Search Failed',
-              manaCost: '',
-              type: 'Unknown'
-            })
-          }
-        }
-        
-        // Rate limiting
-        await new Promise(resolve => setTimeout(resolve, 100))
-        
-      } catch (error) {
-        console.log(`Error fetching ${card.name}: ${error.message}`)
-        results.push({
-          ...card,
-          price: 0,
-          imageUrl: null,
-          setName: 'Error',
-          manaCost: '',
-          type: 'Unknown'
-        })
-      }
+    // Test if we can make any external requests at all
+    console.log('Testing external connectivity...')
+    try {
+      const testResponse = await fetch('https://httpbin.org/get')
+      console.log(`Test request status: ${testResponse.status}`)
+      console.log(`Test request ok: ${testResponse.ok}`)
+    } catch (testError) {
+      console.log(`Test request failed: ${testError.message}`)
     }
-    
-    // Add remaining cards without prices if we hit the limit
-    for (let i = maxRequests; i < cards.length; i++) {
-      results.push({
-        ...cards[i],
-        price: 0,
-        imageUrl: null,
-        setName: 'Not Processed',
-        manaCost: '',
-        type: 'Unknown'
-      })
-    }
+
+    // For now, return mock data to test the frontend
+    console.log('Returning mock data for testing...')
+    const results = cards.map((card, index) => ({
+      ...card,
+      price: Math.random() * 50, // Random prices for testing
+      imageUrl: null,
+      setName: `Mock Set ${index + 1}`,
+      manaCost: '{' + (index % 6) + '}',
+      type: index % 2 === 0 ? 'Creature' : 'Instant'
+    }))
     
     return new Response(JSON.stringify({ cards: results }), {
       headers: {
