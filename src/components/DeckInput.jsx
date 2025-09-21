@@ -1,7 +1,10 @@
 import React, { useState } from 'react'
+import Mascot from './Mascot'
+import SavedDecks from './SavedDecks'
 
-function DeckInput({ onSubmit, priceThreshold, onThresholdChange, loading, error }) {
+function DeckInput({ onSubmit, priceThreshold, onThresholdChange, loading, error, onLoadDeck }) {
   const [deckText, setDeckText] = useState('')
+  const [showSavedDecks, setShowSavedDecks] = useState(false)
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -40,10 +43,13 @@ function DeckInput({ onSubmit, priceThreshold, onThresholdChange, loading, error
 1 Volcanic Island`
 
   return (
-    <div className="bg-dungeon-stone/80 rounded-xl shadow-lg p-6 card-hover border border-cardboard-dark">
+    <div className="bg-dungeon-stone/80 rounded-xl shadow-lg p-6 card-hover border border-cardboard-dark relative">
       <h2 className="text-2xl font-bold mb-4 text-ancient-gold">
         Input Decklist
       </h2>
+      
+      {/* Confused Mascot */}
+      <Mascot type="confused" position="bottom-right" size="small" />
       
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Price Threshold */}
@@ -118,6 +124,16 @@ function DeckInput({ onSubmit, priceThreshold, onThresholdChange, loading, error
           {loading ? 'Processing...' : 'Split Deck'}
         </button>
 
+        {/* Load Saved Deck Button */}
+        <button
+          type="button"
+          onClick={() => setShowSavedDecks(true)}
+          className="btn-secondary w-full"
+          disabled={loading}
+        >
+          📁 Load Saved Deck
+        </button>
+
         {/* Error Display */}
         {error && (
           <div className="bg-red-900/30 border border-red-600/50 text-red-300 px-4 py-3 rounded-lg">
@@ -133,6 +149,13 @@ function DeckInput({ onSubmit, priceThreshold, onThresholdChange, loading, error
           <p className="text-torch-glow mt-2"><strong>Note:</strong> Cards showing "No price data" may be very new, banned, or have spelling variations</p>
         </div>
       </form>
+
+      {/* Saved Decks Modal */}
+      <SavedDecks 
+        isOpen={showSavedDecks}
+        onClose={() => setShowSavedDecks(false)}
+        onLoadDeck={onLoadDeck}
+      />
     </div>
   )
 }

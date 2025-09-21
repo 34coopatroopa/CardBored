@@ -1,10 +1,16 @@
 import React, { useState } from 'react'
 import CardList from './CardList'
+import DeckStats from './DeckStats'
+import SavedDecks from './SavedDecks'
+import Mascot from './Mascot'
 import { calculateTotal, formatPrice, exportDecklist, copyToClipboard, downloadTextFile } from '../utils/decklistUtils'
+import { saveDeck } from '../utils/deckStorage'
 
-function DeckSplitter({ keepCards, proxyCards, priceThreshold, loading }) {
+function DeckSplitter({ keepCards, proxyCards, priceThreshold, loading, onLoadDeck }) {
   const [sortBy, setSortBy] = useState('price') // 'price', 'name', 'quantity'
   const [sortOrder, setSortOrder] = useState('desc') // 'asc', 'desc'
+  const [showSavedDecks, setShowSavedDecks] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   const keepTotal = calculateTotal(keepCards)
   const proxyTotal = calculateTotal(proxyCards)
@@ -77,18 +83,58 @@ function DeckSplitter({ keepCards, proxyCards, priceThreshold, loading }) {
     }
   }
 
+  const handleSaveDeck = async () => {
+    if (allCards.length === 0) {
+      alert('No deck to save!')
+      return
+    }
+
+    setSaving(true)
+    try {
+      const deckName = prompt('Enter a name for this deck:', `Deck ${new Date().toLocaleDateString()}`)
+      if (!deckName) {
+        setSaving(false)
+        return
+      }
+
+      const deckData = {
+        name: deckName,
+        deckText: allCards.map(card => `${card.quantity} ${card.name}`).join('\n'),
+        priceThreshold,
+        cards: allCards,
+        keepCards,
+        proxyCards,
+        totalValue: overallTotal,
+        stats: {
+          totalCards: allCards.length,
+          avgManaCost: allCards.reduce((sum, card) => sum + (parseInt(card.manaCost?.replace(/[^0-9]/g, '') || '0')), 0) / allCards.length
+        }
+      }
+
+      await saveDeck(deckData)
+      alert('Deck saved successfully!')
+    } catch (error) {
+      alert('Failed to save deck: ' + error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (loading) {
     return (
-      <div className="bg-dungeon-stone/80 rounded-xl shadow-lg p-8 text-center border border-cardboard-dark">
+      <div className="bg-dungeon-stone/80 rounded-xl shadow-lg p-8 text-center border border-cardboard-dark relative">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-torch-glow mx-auto mb-4"></div>
         <p className="text-gray-300">Fetching card prices from Scryfall...</p>
+        
+        {/* Sleepy Mascot */}
+        <Mascot type="sleepy" position="bottom-right" size="medium" />
       </div>
     )
   }
 
   if (keepCards.length === 0 && proxyCards.length === 0) {
     return (
-      <div className="bg-dungeon-stone/80 rounded-xl shadow-lg p-8 text-center border border-cardboard-dark">
+      <div className="bg-dungeon-stone/80 rounded-xl shadow-lg p-8 text-center border border-cardboard-dark relative">
         <div className="text-ancient-gold mb-4">
           <svg className="mx-auto h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -96,15 +142,24 @@ function DeckSplitter({ keepCards, proxyCards, priceThreshold, loading }) {
         </div>
         <h3 className="text-lg font-semibold text-ancient-gold mb-2">No decklist processed yet</h3>
         <p className="text-gray-400">Enter a decklist in the input panel to see your Keep and Proxy piles</p>
+        
+        {/* Default Bored Mascot */}
+        <Mascot type="default" position="bottom-right" size="medium" />
       </div>
     )
   }
 
+  // Combine all cards for statistics
+  const allCards = [...keepCards, ...proxyCards]
+
   return (
     <div className="space-y-6">
+      {/* Deck Statistics */}
+      <DeckStats cards={allCards} />
+      
       {/* Summary Stats */}
       <div className="bg-dungeon-stone/80 rounded-xl shadow-lg p-6 border border-cardboard-dark">
-        <h2 className="text-2xl font-bold mb-4 text-ancient-gold">Deck Summary</h2>
+        <h2 className="text-2xl font-bold mb-4 text-ancient-gold">Price Summary</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-green-900/30 border border-green-600/50 rounded-lg p-4 text-center">
@@ -154,7 +209,13 @@ function DeckSplitter({ keepCards, proxyCards, priceThreshold, loading }) {
             </select>
           </div>
           
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={handleSaveDeck} disabled={saving} className="bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-1 rounded transition-colors disabled:opacity-50">
+              {saving ? 'Saving...' : '💾 Save Deck'}
+            </button>
+            <button onClick={() => setShowSavedDecks(true)} className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1 rounded transition-colors">
+              📁 Load Deck
+            </button>
             <button onClick={handleExportKeep} className="btn-secondary text-sm">
               Export Keep
             </button>
@@ -190,6 +251,13 @@ function DeckSplitter({ keepCards, proxyCards, priceThreshold, loading }) {
           icon="🖨️"
         />
       </div>
+
+      {/* Saved Decks Modal */}
+      <SavedDecks 
+        isOpen={showSavedDecks}
+        onClose={() => setShowSavedDecks(false)}
+        onLoadDeck={onLoadDeck}
+      />
     </div>
   )
 }

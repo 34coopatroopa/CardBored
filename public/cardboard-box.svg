@@ -1,0 +1,26 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <!-- Cardboard Box Background -->
+  <rect width="32" height="32" fill="#8b7355" rx="3"/>
+  
+  <!-- Cardboard Texture Lines -->
+  <rect x="3" y="6" width="26" height="1" fill="#6b5b47" opacity="0.5"/>
+  <rect x="3" y="10" width="26" height="1" fill="#6b5b47" opacity="0.4"/>
+  <rect x="3" y="14" width="26" height="1" fill="#6b5b47" opacity="0.5"/>
+  <rect x="3" y="18" width="26" height="1" fill="#6b5b47" opacity="0.3"/>
+  <rect x="3" y="22" width="26" height="1" fill="#6b5b47" opacity="0.4"/>
+  
+  <!-- Bored Face -->
+  <!-- Eyes -->
+  <circle cx="11" cy="13" r="2" fill="#1a1a1a"/>
+  <circle cx="21" cy="13" r="2" fill="#1a1a1a"/>
+  
+  <!-- Mouth -->
+  <rect x="14" y="18" width="4" height="1.5" fill="#1a1a1a" rx="0.75"/>
+  
+  <!-- Tape Strips -->
+  <rect x="4" y="7" width="24" height="3" fill="#ffd700" opacity="0.8" rx="1.5"/>
+  <rect x="4" y="22" width="24" height="3" fill="#ffd700" opacity="0.8" rx="1.5"/>
+  
+  <!-- Box Border -->
+  <rect x="1" y="1" width="30" height="30" fill="none" stroke="#6b5b47" stroke-width="1" opacity="0.6" rx="3"/>
+</svg>

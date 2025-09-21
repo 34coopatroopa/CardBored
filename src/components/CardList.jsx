@@ -1,7 +1,14 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { formatPrice } from '../utils/decklistUtils'
+import CardPreview from './CardPreview'
+import CardDetailModal from './CardDetailModal'
 
 function CardList({ title, subtitle, cards, totalValue, color, icon }) {
+  const [previewCard, setPreviewCard] = useState(null)
+  const [previewPosition, setPreviewPosition] = useState({ x: 0, y: 0 })
+  const [showPreview, setShowPreview] = useState(false)
+  const [detailCard, setDetailCard] = useState(null)
+  const [showDetailModal, setShowDetailModal] = useState(false)
   const colorClasses = {
     green: {
       bg: 'bg-green-900/20',
@@ -20,6 +27,26 @@ function CardList({ title, subtitle, cards, totalValue, color, icon }) {
   }
 
   const colors = colorClasses[color] || colorClasses.green
+
+  const handleCardHover = (card, event) => {
+    const rect = event.target.getBoundingClientRect()
+    // Position the preview lower, near the cards
+    setPreviewPosition({
+      x: rect.left + rect.width / 2,
+      y: rect.bottom + 20 // Position below the card row
+    })
+    setPreviewCard(card)
+    setShowPreview(true)
+  }
+
+  const handleCardLeave = () => {
+    setShowPreview(false)
+  }
+
+  const handleCardClick = (card) => {
+    setDetailCard(card)
+    setShowDetailModal(true)
+  }
 
   return (
     <div className={`${colors.bg} ${colors.border} border rounded-xl shadow-lg overflow-hidden backdrop-blur-sm`}>
@@ -57,20 +84,29 @@ function CardList({ title, subtitle, cards, totalValue, color, icon }) {
         ) : (
           <div className="divide-y divide-gray-600/30">
             {cards.map((card, index) => (
-              <div key={card.id || index} className="p-3 hover:bg-white/10 transition-colors">
+              <div 
+                key={card.id || index} 
+                className="p-3 hover:bg-white/10 transition-colors cursor-pointer"
+                onMouseEnter={(e) => handleCardHover(card, e)}
+                onMouseLeave={handleCardLeave}
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3">
                       {/* Card Image (if available) */}
                       {card.imageUrl && (
-                        <img
-                          src={card.imageUrl}
-                          alt={card.name}
-                          className="w-10 h-14 object-cover rounded border shadow-sm"
-                          onError={(e) => {
-                            e.target.style.display = 'none'
-                          }}
-                        />
+                        <div className="relative">
+                          <img
+                            src={card.imageUrl}
+                            alt={card.name}
+                            className="w-10 h-14 object-cover card-image card-3d"
+                            onError={(e) => {
+                              e.target.style.display = 'none'
+                            }}
+                          />
+                          {/* Hover overlay */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-torch-glow/20 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300 rounded pointer-events-none"></div>
+                        </div>
                       )}
                       
                       <div className="flex-1 min-w-0">
@@ -103,6 +139,14 @@ function CardList({ title, subtitle, cards, totalValue, color, icon }) {
           </div>
         )}
       </div>
+
+      {/* Card Preview */}
+      <CardPreview
+        card={previewCard}
+        isVisible={showPreview}
+        position={previewPosition}
+        onClose={() => setShowPreview(false)}
+      />
     </div>
   )
 }
