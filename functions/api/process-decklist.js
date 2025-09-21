@@ -45,86 +45,141 @@ export async function onRequest(context) {
       }
     }
 
-    // Fetch prices
+    // Fetch prices using batch search to avoid subrequest limits
     const results = []
-    for (const card of cards) {
+    const batchSize = 10 // Process cards in smaller batches
+    
+    for (let i = 0; i < cards.length; i += batchSize) {
+      const batch = cards.slice(i, i + batchSize)
+      console.log(`Processing batch ${Math.floor(i/batchSize) + 1} with ${batch.length} cards`)
+      
+      // Try to get multiple cards in one search
+      const cardNames = batch.map(card => `!"${card.name}"`).join(' or ')
+      const batchUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(cardNames)}&unique=cards&order=name`
+      
       try {
-        console.log(`Searching for card: ${card.name}`)
-        const searchUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(card.name)}`
-        console.log(`Exact search URL: ${searchUrl}`)
-        
-        const response = await fetch(searchUrl)
-        console.log(`Exact search response status: ${response.status}`)
+        console.log(`Batch search URL: ${batchUrl}`)
+        const response = await fetch(batchUrl)
+        console.log(`Batch search response status: ${response.status}`)
         
         if (response.ok) {
           const data = await response.json()
-          console.log(`Found card ${card.name}, price: ${data.prices?.usd}`)
-          results.push({
-            ...card,
-            price: parseFloat(data.prices?.usd) || 0,
-            imageUrl: data.image_uris?.small || null,
-            setName: data.set_name || 'Unknown',
-            manaCost: data.mana_cost || '',
-            type: data.type_line || 'Unknown'
-          })
-        } else {
-          console.log(`Exact search failed for ${card.name}, trying fuzzy search`)
-          // Try fuzzy search
-          const fuzzyUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(card.name)}`
-          console.log(`Fuzzy search URL: ${fuzzyUrl}`)
+          const foundCards = data.data || []
+          console.log(`Batch search found ${foundCards.length} cards`)
           
-          const fuzzyResponse = await fetch(fuzzyUrl)
-          console.log(`Fuzzy search response status: ${fuzzyResponse.status}`)
-          
-          if (fuzzyResponse.ok) {
-            const fuzzyData = await fuzzyResponse.json()
-            const scryfallCard = fuzzyData.data?.[0]
-            console.log(`Fuzzy search found ${scryfallCard ? scryfallCard.name : 'nothing'} for ${card.name}`)
+          // Match found cards with our batch
+          for (const card of batch) {
+            const foundCard = foundCards.find(fc => 
+              fc.name.toLowerCase() === card.name.toLowerCase()
+            )
             
-            if (scryfallCard) {
+            if (foundCard) {
+              console.log(`Found ${card.name}, price: ${foundCard.prices?.usd}`)
               results.push({
                 ...card,
-                price: parseFloat(scryfallCard.prices?.usd) || 0,
-                imageUrl: scryfallCard.image_uris?.small || null,
-                setName: scryfallCard.set_name || 'Unknown',
-                manaCost: scryfallCard.mana_cost || '',
-                type: scryfallCard.type_line || 'Unknown'
+                price: parseFloat(foundCard.prices?.usd) || 0,
+                imageUrl: foundCard.image_uris?.small || null,
+                setName: foundCard.set_name || 'Unknown',
+                manaCost: foundCard.mana_cost || '',
+                type: foundCard.type_line || 'Unknown'
               })
             } else {
+              // Try individual search for this card
+              try {
+                const individualUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(card.name)}`
+                const individualResponse = await fetch(individualUrl)
+                
+                if (individualResponse.ok) {
+                  const individualData = await individualResponse.json()
+                  results.push({
+                    ...card,
+                    price: parseFloat(individualData.prices?.usd) || 0,
+                    imageUrl: individualData.image_uris?.small || null,
+                    setName: individualData.set_name || 'Unknown',
+                    manaCost: individualData.mana_cost || '',
+                    type: individualData.type_line || 'Unknown'
+                  })
+                } else {
+                  results.push({
+                    ...card,
+                    price: 0,
+                    imageUrl: null,
+                    setName: 'Not Found',
+                    manaCost: '',
+                    type: 'Unknown'
+                  })
+                }
+              } catch (individualError) {
+                results.push({
+                  ...card,
+                  price: 0,
+                  imageUrl: null,
+                  setName: 'Error',
+                  manaCost: '',
+                  type: 'Unknown'
+                })
+              }
+            }
+          }
+        } else {
+          console.log(`Batch search failed, trying individual searches`)
+          // Fall back to individual searches
+          for (const card of batch) {
+            try {
+              const individualUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(card.name)}`
+              const individualResponse = await fetch(individualUrl)
+              
+              if (individualResponse.ok) {
+                const individualData = await individualResponse.json()
+                results.push({
+                  ...card,
+                  price: parseFloat(individualData.prices?.usd) || 0,
+                  imageUrl: individualData.image_uris?.small || null,
+                  setName: individualData.set_name || 'Unknown',
+                  manaCost: individualData.mana_cost || '',
+                  type: individualData.type_line || 'Unknown'
+                })
+              } else {
+                results.push({
+                  ...card,
+                  price: 0,
+                  imageUrl: null,
+                  setName: 'Not Found',
+                  manaCost: '',
+                  type: 'Unknown'
+                })
+              }
+            } catch (individualError) {
               results.push({
                 ...card,
                 price: 0,
                 imageUrl: null,
-                setName: 'Not Found',
+                setName: 'Error',
                 manaCost: '',
                 type: 'Unknown'
               })
             }
-          } else {
-            console.log(`Fuzzy search failed for ${card.name}, status: ${fuzzyResponse.status}`)
-            results.push({
-              ...card,
-              price: 0,
-              imageUrl: null,
-              setName: 'Search Failed',
-              manaCost: '',
-              type: 'Unknown'
-            })
           }
         }
         
-        await new Promise(resolve => setTimeout(resolve, 100))
+        // Rate limiting between batches
+        if (i + batchSize < cards.length) {
+          await new Promise(resolve => setTimeout(resolve, 200))
+        }
         
       } catch (error) {
-        console.log(`Error fetching ${card.name}: ${error.message}`)
-        results.push({
-          ...card,
-          price: 0,
-          imageUrl: null,
-          setName: 'Error',
-          manaCost: '',
-          type: 'Unknown'
-        })
+        console.log(`Batch error: ${error.message}`)
+        // Add all cards in this batch as errors
+        for (const card of batch) {
+          results.push({
+            ...card,
+            price: 0,
+            imageUrl: null,
+            setName: 'Error',
+            manaCost: '',
+            type: 'Unknown'
+          })
+        }
       }
     }
     
