@@ -86,7 +86,10 @@ function DeckInput({ onSubmit, priceThreshold, onThresholdChange, loading, error
           </label>
           <textarea
             value={deckText}
-            onChange={(e) => setDeckText(e.target.value)}
+            onChange={(e) => {
+              console.log('Textarea changed, new length:', e.target.value.length)
+              setDeckText(e.target.value)
+            }}
             placeholder="Paste your decklist here in standard format (e.g., '4 Lightning Bolt')"
             className="input-field h-48 resize-none"
             disabled={loading}
@@ -124,6 +127,7 @@ function DeckInput({ onSubmit, priceThreshold, onThresholdChange, loading, error
           type="submit"
           disabled={loading || !deckText.trim()}
           className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+          onClick={() => console.log('Button clicked! deckText length:', deckText.length)}
         >
           {loading ? 'Processing...' : 'Split Deck'}
         </button>
