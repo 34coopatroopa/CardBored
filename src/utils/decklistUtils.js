@@ -33,19 +33,78 @@ export function parseDecklist(deckText) {
   return cards
 }
 
-// Fetch card prices using our backend API
+// Fetch card prices directly from Scryfall API
 export async function fetchCardPrices(deckText) {
   try {
     console.log('Fetching card prices for deckText:', deckText.substring(0, 100) + '...')
-    const response = await axios.post(`${API_BASE}/process-decklist`, {
-      deckText
-    })
     
-    console.log('API response:', response.data)
-    return response.data.cards || []
+    // Parse decklist into cards
+    const cards = parseDecklist(deckText)
+    console.log('Parsed cards:', cards.length)
+    
+    const results = []
+    
+    for (const card of cards) {
+      try {
+        console.log('Searching for card:', card.name)
+        
+        // Try exact search first
+        let searchUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(card.name)}`
+        let response = await fetch(searchUrl)
+        
+        // If exact search fails, try fuzzy search
+        if (!response.ok) {
+          searchUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(card.name)}`
+          response = await fetch(searchUrl)
+        }
+        
+        if (response.ok) {
+          const data = await response.json()
+          const scryfallCard = data.data?.[0] || data
+          
+          console.log('Found card:', card.name, 'Price:', scryfallCard.prices?.usd)
+          
+          results.push({
+            ...card,
+            price: parseFloat(scryfallCard.prices?.usd) || 0,
+            imageUrl: scryfallCard.image_uris?.small || null,
+            setName: scryfallCard.set_name || 'Unknown',
+            manaCost: scryfallCard.mana_cost || '',
+            type: scryfallCard.type_line || 'Unknown'
+          })
+        } else {
+          console.log('Card not found:', card.name)
+          results.push({
+            ...card,
+            price: 0,
+            imageUrl: null,
+            setName: 'Not Found',
+            manaCost: '',
+            type: 'Unknown'
+          })
+        }
+        
+        // Rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+      } catch (error) {
+        console.log('Error fetching card:', card.name, error.message)
+        results.push({
+          ...card,
+          price: 0,
+          imageUrl: null,
+          setName: 'Error',
+          manaCost: '',
+          type: 'Unknown'
+        })
+      }
+    }
+    
+    console.log('Final results:', results)
+    return results
+    
   } catch (error) {
     console.error('Error fetching card prices:', error)
-    console.error('Error details:', error.response?.data)
     throw new Error(`Failed to fetch card prices: ${error.message}`)
   }
 }
