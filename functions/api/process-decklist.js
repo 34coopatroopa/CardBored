@@ -57,7 +57,11 @@ export async function onRequest(context) {
         
         // Try exact search first
         const exactUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(card.name)}`
+        console.log(`Exact URL: ${exactUrl}`)
+        
         const response = await fetch(exactUrl)
+        console.log(`Exact response status: ${response.status}`)
+        console.log(`Exact response ok: ${response.ok}`)
         
         if (response.ok) {
           const data = await response.json()
@@ -73,7 +77,11 @@ export async function onRequest(context) {
         } else {
           // Try fuzzy search
           const fuzzyUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(card.name)}&order=released&dir=desc&unique=cards`
+          console.log(`Fuzzy URL: ${fuzzyUrl}`)
+          
           const fuzzyResponse = await fetch(fuzzyUrl)
+          console.log(`Fuzzy response status: ${fuzzyResponse.status}`)
+          console.log(`Fuzzy response ok: ${fuzzyResponse.ok}`)
           
           if (fuzzyResponse.ok) {
             const fuzzyData = await fuzzyResponse.json()
@@ -101,7 +109,7 @@ export async function onRequest(context) {
               })
             }
           } else {
-            console.log(`Both searches failed for ${card.name}`)
+            console.log(`Both searches failed for ${card.name} - exact: ${response.status}, fuzzy: ${fuzzyResponse.status}`)
             results.push({
               ...card,
               price: 0,
