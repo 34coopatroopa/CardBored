@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { fetchCardDetails } from '../utils/api.js'
 
 function CardPreview({ card, isVisible, position, onClose }) {
   const [cardData, setCardData] = useState(null)
@@ -18,17 +19,6 @@ function CardPreview({ card, isVisible, position, onClose }) {
         })
     }
   }, [isVisible, card])
-
-  const fetchCardDetails = async (cardName) => {
-    try {
-      // Use our proxy to avoid CORS issues
-      const response = await fetch(`/api/card-proxy?card=${encodeURIComponent(cardName)}`)
-      if (!response.ok) throw new Error('Card not found')
-      return await response.json()
-    } catch (error) {
-      throw new Error('Card not found')
-    }
-  }
 
   if (!isVisible || !card) return null
 

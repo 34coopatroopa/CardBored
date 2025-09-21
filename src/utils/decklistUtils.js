@@ -1,4 +1,4 @@
-import axios from 'axios'
+import { processDecklist as apiProcessDecklist } from './api.js'
 
 // Parse a decklist text into card objects
 export function parseDecklist(deckText) {
@@ -31,79 +31,27 @@ export function parseDecklist(deckText) {
   return cards
 }
 
-// Fetch card prices directly from Scryfall API
+// Fetch card prices using the backend API
 export async function fetchCardPrices(deckText) {
   try {
-    console.log('=== fetchCardPrices START (DEPLOYMENT TEST v4) ===')
+    console.log('=== fetchCardPrices START (Using Backend API) ===')
     console.log('DeckText length:', deckText.length)
     
-    // Parse decklist into cards
-    const cards = parseDecklist(deckText)
-    console.log('Parsed cards:', cards.length)
+    // Use the backend API to process the entire decklist
+    const response = await apiProcessDecklist(deckText)
+    console.log('Backend returned:', response.cards?.length || 0, 'cards')
     
-    const results = []
-    const maxRequests = 15 // Limit to avoid rate limiting
-    
-    for (let i = 0; i < Math.min(cards.length, maxRequests); i++) {
-      const card = cards[i]
-      
-      try {
-        console.log(`Searching for card ${i + 1}/${Math.min(cards.length, maxRequests)}: ${card.name}`)
-        
-        // Use our proxy to avoid CORS issues
-        const proxyUrl = `/api/card-proxy?card=${encodeURIComponent(card.name)}`
-        const response = await fetch(proxyUrl)
-        
-        if (response.ok) {
-          const data = await response.json()
-          console.log(`Found ${card.name}, price: ${data.prices?.usd}`)
-          results.push({
-            ...card,
-            price: parseFloat(data.prices?.usd) || 0,
-            imageUrl: data.image_uris?.small || null,
-            setName: data.set_name || 'Unknown',
-            manaCost: data.mana_cost || '',
-            type: data.type_line || 'Unknown'
-          })
-        } else {
-          console.log(`Card not found: ${card.name}`)
-          results.push({
-            ...card,
-            price: 0,
-            imageUrl: null,
-            setName: 'Not Found',
-            manaCost: '',
-            type: 'Unknown'
-          })
-        }
-        
-        // Rate limiting
-        await new Promise(resolve => setTimeout(resolve, 150))
-        
-      } catch (error) {
-        console.log(`Error fetching ${card.name}: ${error.message}`)
-        results.push({
-          ...card,
-          price: 0,
-          imageUrl: null,
-          setName: 'Error',
-          manaCost: '',
-          type: 'Unknown'
-        })
-      }
-    }
-    
-    // Add remaining cards without prices if we hit the limit
-    for (let i = maxRequests; i < cards.length; i++) {
-      results.push({
-        ...cards[i],
-        price: 0,
-        imageUrl: null,
-        setName: 'Not Processed',
-        manaCost: '',
-        type: 'Unknown'
-      })
-    }
+    // Ensure all cards have the required fields
+    const results = response.cards?.map(card => ({
+      name: card.name || 'Unknown',
+      quantity: card.quantity || 1,
+      price: parseFloat(card.price) || 0,
+      imageUrl: card.imageUrl || null,
+      setName: card.setName || 'Unknown',
+      manaCost: card.manaCost || '',
+      type: card.type || 'Unknown',
+      id: card.id || Math.random().toString(36).substr(2, 9)
+    })) || []
     
     console.log('=== fetchCardPrices SUCCESS ===')
     return results

@@ -1,3 +1,22 @@
+export async function onRequestGet() {
+  return new Response(
+    JSON.stringify({ 
+      message: "Use POST with { deckText } to process decklists",
+      example: {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: { deckText: "4 Lightning Bolt\n2 Sol Ring" }
+      }
+    }),
+    { 
+      headers: { 
+        "Content-Type": "application/json",
+        'Access-Control-Allow-Origin': '*'
+      } 
+    }
+  );
+}
+
 export async function onRequestPost(context) {
   // Handle CORS preflight
   if (context.request.method === 'OPTIONS') {
