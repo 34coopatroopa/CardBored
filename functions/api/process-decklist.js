@@ -15,7 +15,7 @@ export async function onRequestPost(context) {
     const deckText = body.deckText || ""
     
     if (!deckText) {
-      return new Response('No deck text provided', { 
+      return new Response(JSON.stringify({ error: 'No deck text provided' }), { 
         status: 400,
         headers: {
           'Content-Type': 'application/json',
@@ -25,124 +25,86 @@ export async function onRequestPost(context) {
     }
 
     // Parse decklist into cards
-    const lines = deckText.trim().split('\n')
-    const cards = []
+    const lines = deckText.trim().split('\n').map(l => l.trim()).filter(Boolean)
+    const results = []
+    
+    console.log(`Processing ${lines.length} decklist lines`)
     
     for (const line of lines) {
-      const trimmedLine = line.trim()
-      if (!trimmedLine || trimmedLine.startsWith('//') || trimmedLine.startsWith('#')) {
+      // Skip comments
+      if (line.startsWith('//') || line.startsWith('#')) {
         continue
       }
       
-      const match = trimmedLine.match(/^(\d+)\s+(.+)$/)
-      if (match) {
-        cards.push({
-          name: match[2].trim(),
-          quantity: parseInt(match[1]),
+      // Extract quantity + card name
+      const match = line.match(/^(\d+)\s+(.*)$/)
+      if (!match) {
+        console.log(`Skipping invalid line: "${line}"`)
+        continue
+      }
+      
+      const qty = parseInt(match[1], 10)
+      const cardName = match[2].trim()
+      
+      console.log(`Looking up card: "${cardName}" (${qty}x)`)
+      
+      try {
+        // Use fuzzy search (more reliable than exact)
+        const url = `https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(cardName)}`
+        const res = await fetch(url)
+        
+        if (!res.ok) {
+          console.warn(`Scryfall fetch failed for "${cardName}": ${res.status}`)
+          results.push({
+            name: cardName,
+            quantity: qty,
+            price: 0,
+            imageUrl: null,
+            setName: 'Not Found',
+            manaCost: '',
+            type: 'Unknown',
+            id: Math.random().toString(36).substr(2, 9)
+          })
+          continue
+        }
+        
+        const data = await res.json()
+        
+        // Use best available price
+        const price = parseFloat(data.prices?.usd || data.prices?.usd_foil || data.prices?.eur || 0)
+        
+        console.log(`Found "${cardName}" as "${data.name}": $${price}`)
+        
+        results.push({
+          name: data.name, // Use Scryfall's official name
+          quantity: qty,
+          price: price,
+          imageUrl: data.image_uris?.small || null,
+          setName: data.set_name || 'Unknown',
+          manaCost: data.mana_cost || '',
+          type: data.type_line || 'Unknown',
+          id: Math.random().toString(36).substr(2, 9)
+        })
+        
+        // Rate limiting - be gentle with Scryfall
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+      } catch (error) {
+        console.error(`Error fetching "${cardName}": ${error.message}`)
+        results.push({
+          name: cardName,
+          quantity: qty,
           price: 0,
+          imageUrl: null,
+          setName: 'Error',
+          manaCost: '',
+          type: 'Unknown',
           id: Math.random().toString(36).substr(2, 9)
         })
       }
     }
 
-    // Fetch prices from Scryfall API
-    const results = []
-    const maxRequests = 15 // Limit to avoid rate limiting
-    
-    console.log(`Processing ${cards.length} cards, limiting to ${maxRequests}`)
-    
-    for (let i = 0; i < Math.min(cards.length, maxRequests); i++) {
-      const card = cards[i]
-      
-      try {
-        console.log(`Searching for: "${card.name}" (${card.quantity}x)`)
-        
-        // Try exact search first
-        const exactUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(card.name)}`
-        const response = await fetch(exactUrl)
-        
-        if (response.ok) {
-          const data = await response.json()
-          console.log(`Found "${card.name}": $${data.prices?.usd}`)
-          results.push({
-            ...card,
-            price: parseFloat(data.prices?.usd) || 0,
-            imageUrl: data.image_uris?.small || null,
-            setName: data.set_name || 'Unknown',
-            manaCost: data.mana_cost || '',
-            type: data.type_line || 'Unknown'
-          })
-        } else {
-          console.log(`Exact search failed for "${card.name}", trying fuzzy search`)
-          // Try fuzzy search
-          const fuzzyUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(card.name)}&order=released&dir=desc&unique=cards`
-          const fuzzyResponse = await fetch(fuzzyUrl)
-          
-          if (fuzzyResponse.ok) {
-            const fuzzyData = await fuzzyResponse.json()
-            const foundCard = fuzzyData.data?.[0]
-            
-            if (foundCard) {
-              console.log(`Fuzzy found "${card.name}" as "${foundCard.name}": $${foundCard.prices?.usd}`)
-              results.push({
-                ...card,
-                price: parseFloat(foundCard.prices?.usd) || 0,
-                imageUrl: foundCard.image_uris?.small || null,
-                setName: foundCard.set_name || 'Unknown',
-                manaCost: foundCard.mana_cost || '',
-                type: foundCard.type_line || 'Unknown'
-              })
-            } else {
-              console.log(`No fuzzy match for "${card.name}"`)
-              results.push({
-                ...card,
-                price: 0,
-                imageUrl: null,
-                setName: 'Not Found',
-                manaCost: '',
-                type: 'Unknown'
-              })
-            }
-          } else {
-            console.log(`Fuzzy search also failed for "${card.name}"`)
-            results.push({
-              ...card,
-              price: 0,
-              imageUrl: null,
-              setName: 'Search Failed',
-              manaCost: '',
-              type: 'Unknown'
-            })
-          }
-        }
-        
-        // Rate limiting
-        await new Promise(resolve => setTimeout(resolve, 150))
-        
-      } catch (error) {
-        console.log(`Error fetching "${card.name}": ${error.message}`)
-        results.push({
-          ...card,
-          price: 0,
-          imageUrl: null,
-          setName: 'Error',
-          manaCost: '',
-          type: 'Unknown'
-        })
-      }
-    }
-    
-    // Add remaining cards without prices if we hit the limit
-    for (let i = maxRequests; i < cards.length; i++) {
-      results.push({
-        ...cards[i],
-        price: 0,
-        imageUrl: null,
-        setName: 'Not Processed',
-        manaCost: '',
-        type: 'Unknown'
-      })
-    }
+    console.log(`Successfully processed ${results.length} cards`)
     
     return new Response(JSON.stringify({ cards: results }), {
       headers: {
@@ -150,8 +112,9 @@ export async function onRequestPost(context) {
         'Access-Control-Allow-Origin': '*'
       }
     })
-    
+
   } catch (error) {
+    console.error('Function error:', error.message)
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: {
