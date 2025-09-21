@@ -9,8 +9,5 @@
       "src": "/api/(.*)",
       "dest": "api/index.js"
     }
-  ],
-  "engines": {
-    "node": "18.x"
-  }
+  ]
 }
