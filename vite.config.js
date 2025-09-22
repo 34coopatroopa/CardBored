@@ -10,7 +10,7 @@ export default defineConfig({
     {
       name: 'copy-cards-data',
       writeBundle() {
-        // Copy cards.json to dist directory for Worker access
+        // Copy cards.json and favicon files to dist directory
         try {
           copyFileSync(
             resolve(__dirname, 'public/cards.json'),
@@ -19,6 +19,16 @@ export default defineConfig({
           console.log('✅ Copied cards.json to dist directory')
         } catch (error) {
           console.warn('⚠️  Could not copy cards.json:', error.message)
+        }
+        
+        try {
+          copyFileSync(
+            resolve(__dirname, 'public/favicon.svg'),
+            resolve(__dirname, 'dist/favicon.svg')
+          )
+          console.log('✅ Copied favicon.svg to dist directory')
+        } catch (error) {
+          console.warn('⚠️  Could not copy favicon.svg:', error.message)
         }
       }
     }
