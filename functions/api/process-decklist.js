@@ -33,7 +33,7 @@ export async function onRequestPost(context) {
   }
 
   try {
-    const { CARD_DB } = context.env
+    const { CARD_DB } = context.env || {}
     const body = await context.request.json()
     const deckText = body.deckText || ""
     
@@ -50,8 +50,20 @@ export async function onRequestPost(context) {
     console.log(`Processing decklist with ${deckText.split('\n').length} lines`)
 
     // Check KV cache for Scryfall bulk data
-    let cardsJson = await CARD_DB.get("scryfall-cards", "json")
-    let cacheTimestamp = await CARD_DB.get("scryfall-cards-timestamp", "text")
+    let cardsJson = null
+    let cacheTimestamp = null
+    
+    if (CARD_DB) {
+      console.log('KV binding available, checking cache...')
+      try {
+        cardsJson = await CARD_DB.get("scryfall-cards", "json")
+        cacheTimestamp = await CARD_DB.get("scryfall-cards-timestamp", "text")
+      } catch (kvError) {
+        console.error('KV access error:', kvError.message)
+      }
+    } else {
+      console.log('KV binding not available, using direct processing...')
+    }
     
     const now = Date.now()
     const oneDay = 24 * 60 * 60 * 1000 // 24 hours in milliseconds
@@ -95,12 +107,18 @@ export async function onRequestPost(context) {
           }
         }
         
-        // Store in KV with timestamp
-        await CARD_DB.put("scryfall-cards", JSON.stringify(lookup))
-        await CARD_DB.put("scryfall-cards-timestamp", now.toString())
+        // Store in KV with timestamp (if available)
+        if (CARD_DB) {
+          try {
+            await CARD_DB.put("scryfall-cards", JSON.stringify(lookup))
+            await CARD_DB.put("scryfall-cards-timestamp", now.toString())
+            console.log(`Cached ${Object.keys(lookup).length} cards in KV`)
+          } catch (kvError) {
+            console.error('Failed to store in KV:', kvError.message)
+          }
+        }
         
         cardsJson = lookup
-        console.log(`Cached ${Object.keys(lookup).length} cards in KV`)
         
       } catch (error) {
         console.error('Failed to fetch bulk data:', error.message)
@@ -121,53 +139,87 @@ export async function onRequestPost(context) {
     const results = []
     let totalCost = 0
 
-    for (const line of lines) {
-      // Skip comments
-      if (line.startsWith('//') || line.startsWith('#')) {
-        continue
-      }
+    // If no cached data available, process without prices
+    if (!cardsJson) {
+      console.log('No cached data available, processing without prices...')
       
-      // Parse quantity + card name
-      const match = line.match(/^(\d+)\s+(.*)$/)
-      if (!match) {
-        console.log(`Skipping invalid line: "${line}"`)
-        continue
-      }
-      
-      const qty = parseInt(match[1], 10)
-      const cardName = match[2].trim()
-      const normalizedName = cardName.toLowerCase()
-      
-      // Lookup in cached data
-      const card = cardsJson[normalizedName]
-      
-      let price = "N/A"
-      let imageUrl = null
-      let setName = "Not Found"
-      let manaCost = ""
-      let type = "Unknown"
-      
-      if (card) {
-        price = card.prices?.usd || card.prices?.usd_foil || "N/A"
-        if (price !== "N/A") {
-          totalCost += parseFloat(price) * qty
+      for (const line of lines) {
+        // Skip comments
+        if (line.startsWith('//') || line.startsWith('#')) {
+          continue
         }
-        imageUrl = card.image_uris?.small || null
-        setName = card.set_name || "Unknown"
-        manaCost = card.mana_cost || ""
-        type = card.type_line || "Unknown"
+        
+        // Parse quantity + card name
+        const match = line.match(/^(\d+)\s+(.*)$/)
+        if (!match) {
+          console.log(`Skipping invalid line: "${line}"`)
+          continue
+        }
+        
+        const qty = parseInt(match[1], 10)
+        const cardName = match[2].trim()
+        
+        results.push({
+          name: cardName,
+          quantity: qty,
+          price: "N/A",
+          imageUrl: null,
+          setName: "No Cache",
+          manaCost: "",
+          type: "Unknown",
+          id: Math.random().toString(36).substr(2, 9)
+        })
       }
-      
-      results.push({
-        name: cardName,
-        quantity: qty,
-        price: price,
-        imageUrl: imageUrl,
-        setName: setName,
-        manaCost: manaCost,
-        type: type,
-        id: Math.random().toString(36).substr(2, 9)
-      })
+    } else {
+      // Process with cached data
+      for (const line of lines) {
+        // Skip comments
+        if (line.startsWith('//') || line.startsWith('#')) {
+          continue
+        }
+        
+        // Parse quantity + card name
+        const match = line.match(/^(\d+)\s+(.*)$/)
+        if (!match) {
+          console.log(`Skipping invalid line: "${line}"`)
+          continue
+        }
+        
+        const qty = parseInt(match[1], 10)
+        const cardName = match[2].trim()
+        const normalizedName = cardName.toLowerCase()
+        
+        // Lookup in cached data
+        const card = cardsJson[normalizedName]
+        
+        let price = "N/A"
+        let imageUrl = null
+        let setName = "Not Found"
+        let manaCost = ""
+        let type = "Unknown"
+        
+        if (card) {
+          price = card.prices?.usd || card.prices?.usd_foil || "N/A"
+          if (price !== "N/A") {
+            totalCost += parseFloat(price) * qty
+          }
+          imageUrl = card.image_uris?.small || null
+          setName = card.set_name || "Unknown"
+          manaCost = card.mana_cost || ""
+          type = card.type_line || "Unknown"
+        }
+        
+        results.push({
+          name: cardName,
+          quantity: qty,
+          price: price,
+          imageUrl: imageUrl,
+          setName: setName,
+          manaCost: manaCost,
+          type: type,
+          id: Math.random().toString(36).substr(2, 9)
+        })
+      }
     }
 
     console.log(`Successfully processed ${results.length} cards, total cost: $${totalCost.toFixed(2)}`)
@@ -176,7 +228,8 @@ export async function onRequestPost(context) {
       cards: results, 
       totalCost: totalCost.toFixed(2),
       timestamp: new Date().toISOString(),
-      cacheAge: cacheTimestamp ? Math.round((now - parseInt(cacheTimestamp)) / (60 * 60 * 1000)) : null
+      cacheAge: cacheTimestamp ? Math.round((now - parseInt(cacheTimestamp)) / (60 * 60 * 1000)) : 'no-cache',
+      kvAvailable: !!CARD_DB
     }), {
       headers: {
         'Content-Type': 'application/json',
