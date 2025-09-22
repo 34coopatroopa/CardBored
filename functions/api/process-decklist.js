@@ -2,7 +2,12 @@
 // This eliminates the need for KV and makes the app work offline
 
 // Import the bundled cards data
-import cards from "../../dist/cards.json";
+import cardsData from "../../dist/cards.json";
+
+// Extract just the card data (excluding metadata)
+const cards = Object.fromEntries(
+  Object.entries(cardsData).filter(([key]) => key !== '_metadata')
+);
 
 export async function onRequestGet() {
   return new Response(

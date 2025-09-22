@@ -3,6 +3,7 @@
 /**
  * Build script to fetch Scryfall bulk data and create a lightweight lookup file
  * This eliminates the need for KV namespaces and makes the app work offline
+ * Now includes change detection for automated updates
  */
 
 import fs from 'fs/promises'
@@ -27,6 +28,7 @@ async function fetchBulkData() {
   const meta = await metaResponse.json()
   console.log(`📦 Bulk data size: ${(meta.size / 1024 / 1024).toFixed(2)} MB`)
   console.log(`🔗 Download URL: ${meta.download_uri}`)
+  console.log(`📅 Last updated: ${meta.updated_at}`)
   
   // Step 2: Download the actual bulk data
   console.log('⬇️  Downloading bulk data...')
@@ -38,7 +40,7 @@ async function fetchBulkData() {
   const cards = await dataResponse.json()
   console.log(`✅ Downloaded ${cards.length} cards`)
   
-  return cards
+  return { cards, metadata: meta }
 }
 
 function createLookupTable(cards) {
@@ -71,31 +73,70 @@ function createLookupTable(cards) {
   return lookup
 }
 
-async function saveLookupTable(lookup) {
+async function saveLookupTable(lookup, metadata) {
   console.log('💾 Saving lookup table...')
   
   // Ensure public directory exists
   const publicDir = path.dirname(OUTPUT_FILE)
   await fs.mkdir(publicDir, { recursive: true })
   
+  // Add metadata to the lookup table
+  const dataWithMetadata = {
+    _metadata: {
+      lastUpdated: metadata.updated_at,
+      totalCards: Object.keys(lookup).length,
+      fetchedAt: new Date().toISOString(),
+      version: metadata.version || 'unknown'
+    },
+    ...lookup
+  }
+  
   // Save the lookup table
-  await fs.writeFile(OUTPUT_FILE, JSON.stringify(lookup, null, 2))
+  await fs.writeFile(OUTPUT_FILE, JSON.stringify(dataWithMetadata, null, 2))
   
   const stats = await fs.stat(OUTPUT_FILE)
   console.log(`✅ Saved to ${OUTPUT_FILE}`)
   console.log(`📏 File size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`)
+  
+  return dataWithMetadata
+}
+
+async function checkForChanges(newData) {
+  try {
+    const existingData = JSON.parse(await fs.readFile(OUTPUT_FILE, 'utf8'))
+    const existingMetadata = existingData._metadata
+    
+    if (existingMetadata && existingMetadata.lastUpdated === newData._metadata.lastUpdated) {
+      console.log('ℹ️  No changes detected - card data is up to date')
+      return false
+    }
+    
+    console.log(`🔄 Changes detected! Previous update: ${existingMetadata?.lastUpdated || 'unknown'}`)
+    console.log(`🆕 New update: ${newData._metadata.lastUpdated}`)
+    return true
+  } catch (error) {
+    console.log('ℹ️  No existing data found - will create new file')
+    return true
+  }
 }
 
 async function main() {
   try {
     console.log('🚀 Starting Scryfall bulk data fetch...')
     
-    const cards = await fetchBulkData()
+    const { cards, metadata } = await fetchBulkData()
     const lookup = createLookupTable(cards)
-    await saveLookupTable(lookup)
+    const dataWithMetadata = await saveLookupTable(lookup, metadata)
     
-    console.log('🎉 Build complete! Card data is ready for bundling.')
-    console.log(`📈 Cards with prices: ${Object.keys(lookup).length}`)
+    const hasChanges = await checkForChanges(dataWithMetadata)
+    
+    if (hasChanges) {
+      console.log('🎉 Build complete! Card data has been updated.')
+      console.log(`📈 Cards with prices: ${Object.keys(lookup).length}`)
+      console.log(`📅 Last Scryfall update: ${metadata.updated_at}`)
+    } else {
+      console.log('✅ Card data is already up to date - no changes needed')
+    }
     
   } catch (error) {
     console.error('❌ Build failed:', error.message)
