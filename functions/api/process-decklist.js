@@ -1,5 +1,8 @@
-// Scryfall bulk data processing with KV caching
-// This avoids rate limits and subrequest issues
+// Scryfall bulk data processing with bundled cards.json
+// This eliminates the need for KV and makes the app work offline
+
+// Import the bundled cards data
+import cards from "../../dist/cards.json";
 
 export async function onRequestGet() {
   return new Response(
@@ -33,23 +36,9 @@ export async function onRequestPost(context) {
   }
 
   try {
-    const { CARD_DB } = context.env
     const body = await context.request.json()
     const deckText = body.deckText || body.decklist || ""
     const threshold = parseFloat(body.threshold) || 3.0
-    
-    if (!CARD_DB) {
-      return new Response(
-        JSON.stringify({ error: "KV binding not available" }),
-        { 
-          status: 500, 
-          headers: { 
-            "Content-Type": "application/json",
-            'Access-Control-Allow-Origin': '*'
-          } 
-        }
-      )
-    }
     
     if (!deckText) {
       return new Response(JSON.stringify({ error: 'No deck text provided' }), { 
@@ -63,74 +52,7 @@ export async function onRequestPost(context) {
 
     console.log(`Processing decklist with ${deckText.split('\n').length} lines, threshold: $${threshold}`)
 
-    // Check KV cache for Scryfall bulk data
-    let cardsJson = await CARD_DB.get("scryfall-cards", "json")
-    let cacheTimestamp = await CARD_DB.get("scryfall-cards-timestamp", "text")
-    
-    const now = Date.now()
-    const oneDay = 24 * 60 * 60 * 1000 // 24 hours in milliseconds
-    
-    // If cache is missing or older than 1 day, fetch fresh data
-    if (!cardsJson || !cacheTimestamp || (now - parseInt(cacheTimestamp)) > oneDay) {
-      console.log('Cache miss, fetching bulk data')
-      
-      try {
-        // Step 1: Fetch bulk data metadata
-        const bulkMetaResponse = await fetch("https://api.scryfall.com/bulk-data/default-cards")
-        if (!bulkMetaResponse.ok) {
-          throw new Error(`Failed to fetch bulk metadata: ${bulkMetaResponse.status}`)
-        }
-        const bulkMeta = await bulkMetaResponse.json()
-        
-        console.log(`Fetching bulk data from: ${bulkMeta.download_uri}`)
-        
-        // Step 2: Fetch the actual bulk data from the download URI
-        const bulkDataResponse = await fetch(bulkMeta.download_uri)
-        if (!bulkDataResponse.ok) {
-          throw new Error(`Failed to fetch bulk data: ${bulkDataResponse.status}`)
-        }
-        const bulkData = await bulkDataResponse.json()
-        
-        console.log(`Fetched ${bulkData.length} cards from Scryfall`)
-        
-        // Create lookup table by normalized card name
-        const lookup = {}
-        for (const card of bulkData) {
-          if (card.name && card.prices) {
-            const normalizedName = card.name.toLowerCase().trim()
-            lookup[normalizedName] = {
-              name: card.name,
-              prices: card.prices,
-              image_uris: card.image_uris,
-              set_name: card.set_name,
-              mana_cost: card.mana_cost,
-              type_line: card.type_line
-            }
-          }
-        }
-        
-        // Store in KV with timestamp
-        await CARD_DB.put("scryfall-cards", JSON.stringify(lookup))
-        await CARD_DB.put("scryfall-cards-timestamp", now.toString())
-        console.log(`Cached ${Object.keys(lookup).length} cards in KV`)
-        
-        cardsJson = lookup
-        
-      } catch (error) {
-        console.error('Failed to fetch bulk data:', error.message)
-        
-        // If we have stale cache, use it
-        if (cardsJson) {
-          console.log('Using stale cache due to fetch error')
-        } else {
-          throw new Error('Unable to load card database')
-        }
-      }
-    } else {
-      console.log('Loaded bulk data from KV cache')
-    }
-
-    // Process decklist
+    // Process decklist using bundled cards data
     const lines = deckText.trim().split('\n').map(l => l.trim()).filter(Boolean)
     const doNotProxy = []
     const proxy = []
@@ -153,8 +75,8 @@ export async function onRequestPost(context) {
       const cardName = match[2].trim()
       const normalizedName = cardName.toLowerCase()
       
-      // Lookup in cached data
-      const card = cardsJson[normalizedName]
+      // Lookup in bundled cards data
+      const card = cards[normalizedName]
       
       let price = "N/A"
       let imageUrl = null
@@ -163,14 +85,14 @@ export async function onRequestPost(context) {
       let type = "Unknown"
       
       if (card) {
-        price = card.prices?.usd || card.prices?.usd_foil || card.prices?.eur || "N/A"
+        price = card.price || "N/A"
         if (price !== "N/A") {
           totalCost += parseFloat(price) * qty
         }
-        imageUrl = card.image_uris?.small || null
-        setName = card.set_name || "Unknown"
-        manaCost = card.mana_cost || ""
-        type = card.type_line || "Unknown"
+        imageUrl = card.imageUrl || null
+        setName = card.setName || "Unknown"
+        manaCost = card.manaCost || ""
+        type = card.type || "Unknown"
       }
       
       const cardData = {
