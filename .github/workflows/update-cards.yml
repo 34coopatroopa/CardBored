@@ -70,7 +70,7 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git fetch origin main
-        git rebase origin/main
+        git rebase origin/main || git rebase --skip
         git add .
         git commit -m "🤖 Auto-update card data $(date -u)" || echo "No changes to commit"
         git push origin HEAD:main
