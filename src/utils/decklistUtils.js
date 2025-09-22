@@ -39,10 +39,11 @@ export async function fetchCardPrices(deckText) {
     
     // Use the backend API to process the entire decklist
     const response = await apiProcessDecklist(deckText)
-    console.log('Backend returned:', response.cards?.length || 0, 'cards')
+    console.log('Backend returned:', (response.doNotProxy?.length || 0) + (response.proxy?.length || 0), 'cards')
     
-    // Ensure all cards have the required fields
-    const results = response.cards?.map(card => ({
+    // Combine doNotProxy and proxy arrays and ensure all cards have the required fields
+    const allCards = [...(response.doNotProxy || []), ...(response.proxy || [])]
+    const results = allCards.map(card => ({
       name: card.name || 'Unknown',
       quantity: card.quantity || 1,
       price: card.price === "N/A" ? 0 : parseFloat(card.price) || 0,
@@ -51,7 +52,7 @@ export async function fetchCardPrices(deckText) {
       manaCost: card.manaCost || '',
       type: card.type || 'Unknown',
       id: card.id || Math.random().toString(36).substr(2, 9)
-    })) || []
+    }))
     
     console.log('=== fetchCardPrices SUCCESS ===')
     return results
