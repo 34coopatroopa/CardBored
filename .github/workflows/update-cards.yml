@@ -69,12 +69,12 @@ jobs:
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-        git pull
+        git fetch origin main
+        git rebase origin/main
         git add .
-        git commit -m "Auto-update card data $(date -u)" || echo "No changes to commit"
-        git push
-    
+        git commit -m "🤖 Auto-update card data $(date -u)" || echo "No changes to commit"
+        git push origin HEAD:main
+        
     - name: Notify completion
       if: always()
       run: |
