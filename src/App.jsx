@@ -125,7 +125,7 @@ function App() {
               
               <div className="mt-4 pt-4 border-t border-ancient-gold/20">
                 <p className="text-ancient-gold text-sm font-medium mb-2">
-                  Dedicated to Bradley, Jayson, Jacob, Jeffery, Jaime, and Derek
+                  Dedicated to Bradley, Jason, Jacob, Jeffery, Jaime, and Derek
                 </p>
                 <p className="text-gray-500 text-xs">
                   <em>Note: Card prices and statistics may be slightly inaccurate due to market fluctuations and API limitations. 
