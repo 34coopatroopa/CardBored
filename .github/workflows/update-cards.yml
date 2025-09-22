@@ -73,7 +73,7 @@ jobs:
         git rebase origin/main || git rebase --skip
         git add .
         git commit -m "🤖 Auto-update card data $(date -u)" || echo "No changes to commit"
-        git push origin HEAD:main
+        git push origin HEAD:main --force
         
     - name: Notify completion
       if: always()
