@@ -2,21 +2,5 @@ name = "cardbored"
 compatibility_date = "2024-01-15"
 pages_build_output_dir = "dist"
 
-# Default/dev KV binding for Scryfall bulk data
-# To create the namespace, run: npx wrangler kv:namespace create "CARD_DB"
-# Then replace the IDs below with the output from that command
-[[kv_namespaces]]
-binding = "CARD_DB"
-id = "REPLACE_WITH_DEV_NAMESPACE_ID"
-preview_id = "REPLACE_WITH_DEV_PREVIEW_ID"
-
 [env.production]
 name = "cardbored"
-
-# Production KV binding for Scryfall bulk data
-# To create the production namespace, run: npx wrangler kv:namespace create "CARD_DB" --env production
-# Then replace the IDs below with the output from that command
-[[env.production.kv_namespaces]]
-binding = "CARD_DB"
-id = "REPLACE_WITH_PROD_NAMESPACE_ID"
-preview_id = "REPLACE_WITH_PROD_PREVIEW_ID"

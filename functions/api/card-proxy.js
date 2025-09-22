@@ -1,3 +1,6 @@
+// Import the bundled cards data
+import cards from "../../dist/cards.json";
+
 export async function onRequest(context) {
   const { request } = context
 
@@ -25,40 +28,23 @@ export async function onRequest(context) {
       })
     }
 
-    // Try exact search first
-    const exactUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cardName)}`
-    let response = await fetch(exactUrl)
+    // Search in the bundled cards data
+    const normalizedName = cardName.toLowerCase().trim()
+    const card = cards[normalizedName]
     
-    if (!response.ok) {
-      // Try fuzzy search
-      const fuzzyUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(cardName)}&order=released&dir=desc&unique=cards`
-      response = await fetch(fuzzyUrl)
-      
-      if (response.ok) {
-        const data = await response.json()
-        const card = data.data?.[0]
-        if (card) {
-          return new Response(JSON.stringify(card), {
-            headers: {
-              'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*'
-            }
-          })
-        }
-      }
-      
-      return new Response('Card not found', { 
-        status: 404,
+    if (card) {
+      return new Response(JSON.stringify(card), {
         headers: {
+          'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*'
         }
       })
     }
-
-    const data = await response.json()
-    return new Response(JSON.stringify(data), {
+    
+    // Card not found in bundled data
+    return new Response('Card not found', { 
+      status: 404,
       headers: {
-        'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*'
       }
     })
